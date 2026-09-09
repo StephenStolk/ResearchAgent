@@ -76,7 +76,7 @@ class Source(BaseModel):
 
 
 class Evidence(BaseModel):
-    """A located passage inside a Source. This is what a Claim actually cites - not the whole page."""
+    """A located passage inside a Source. This is what a Claim actually cites"""
     id: str = Field(default_factory=lambda: _new_id("e"))
     source_id: str
     passage: str
@@ -113,7 +113,7 @@ class Claim(BaseModel):
     text: str
     entity_ids: list[str] = Field(default_factory=list)
     metric: Optional[str] = None
-    metric_value: Optional[float] = None   # normalized numeric value, if parseable
+    metric_value: Optional[float] = None   
     metric_unit: Optional[str] = None      # "USD", "%", "count", etc.
     date: Optional[str] = None
     claim_type: ClaimType = ClaimType.FACT
@@ -183,28 +183,23 @@ class ReportStatus(str, Enum):
 
 
 class ContentViews(BaseModel):
-    """Presentation formats built from the verified packet (blueprint
-    section 15). The content builder never invents facts here - every
-    entry traces back to a claim already in the packet."""
-    article_sections: list[dict] = Field(default_factory=list)      # [{heading, body, claim_ids}]
+    """Presentation formats built from the verified packet (blueprint section 15). The content builder never invents facts here - every entry traces back to a claim already in the packet."""
+    article_sections: list[dict] = Field(default_factory=list)      
     executive_brief: list[str] = Field(default_factory=list)         # top 5-10 claim texts
-    timeline: list[dict] = Field(default_factory=list)               # [{date, text, claim_id}]
-    metrics: list[dict] = Field(default_factory=list)                # [{metric, value_text, claim_id}]
-    flags: list[str] = Field(default_factory=list)                   # fact-check notes (section 12)
+    timeline: list[dict] = Field(default_factory=list)       # [{date, text,claim_id}]
+    metrics: list[dict] = Field(default_factory=list)     # [{metric, value_text, claim_id}]
+    flags: list[str] = Field(default_factory=list)       # fact-check notes (section 12)
 
 
 class PipelineVersions(BaseModel):
-    """Versioning strategy from blueprint §35. Included in cache keys so
-    old reports never get silently mixed with new pipeline logic."""
+    """Versioning strategy from blueprint §35. Included in cache keys so old reports never get silently mixed with new pipeline logic."""
     pipeline_version: str = "0.1.0"
     schema_version: int = 1
     source_policy_version: int = 1
 
 
 class ResearchPacket(BaseModel):
-    """The canonical, stable contract between backend intelligence and
-    every UI surface (blueprint §36, §40). Nothing downstream (synthesis,
-    content builder, ASK, scenario engine) should read raw search/fetch
+    """The canonical, stable contract between backend intelligence and every UI surface (blueprint §36, §40). Nothing downstream (synthesis,content builder, ASK, scenario engine) should read raw search/fetch
     output directly - only this object."""
     job_id: str = Field(default_factory=lambda: _new_id("job"))
     topic: str
@@ -220,18 +215,14 @@ class ResearchPacket(BaseModel):
     charts: list[ChartSpec] = Field(default_factory=list)
     open_questions: list[str] = Field(default_factory=list)
 
-    # populated by the synthesizer once claims are verified
     summary: Optional[str] = None
     content: Optional[ContentViews] = None
 
-    # per-stage timing/notes for observability (section 26) and
-    # graceful-degradation transparency (section 24)
     stage_notes: list[str] = Field(default_factory=list)
     stage_timings_ms: dict[str, int] = Field(default_factory=dict)
 
     def add_source(self, source: Source) -> Source:
-        """Dedup by canonical_url before appending; returns the stored
-        (possibly pre-existing) Source."""
+        """Dedup by canonical_url before appending; returns the stored (possibly pre-existing) Source."""
         for existing in self.sources:
             if existing.canonical_url == source.canonical_url:
                 return existing
@@ -239,11 +230,14 @@ class ResearchPacket(BaseModel):
         return source
 
     def high_importance_claims(self) -> list[Claim]:
-        return [c for c in self.claims if c.importance == Importance.HIGH]
+        results = []
+        for c in self.claims:
+            if c.importance == Importance.HIGH:
+                results.append(c)
+        return results
 
     def claim_coverage(self) -> float:
-        """Fraction of HIGH-importance claims that have at least one
-        evidence reference - a quality gate metric (blueprint §25)."""
+        """Fraction of HIGH-importance claims that have at least one evidence reference - a quality gate metric (blueprint §25)."""
         high = self.high_importance_claims()
         if not high:
             return 1.0
@@ -251,15 +245,22 @@ class ResearchPacket(BaseModel):
         return covered / len(high)
 
     def source_ids_for_claims(self, claim_ids: list[str]) -> list[str]:
-        """Trace claims -> evidence -> sources, for building citations on
-        insights/charts. Order-preserving, deduped."""
-        evidence_by_id = {e.id: e for e in self.evidence}
+        """Trace claims -> evidence -> sources, for building citations on insights/charts. Order-preserving, deduped."""
+        evidence_by_id = {
+            e.id: e 
+            for e in self.evidence
+        }
         seen: list[str] = []
-        claims_by_id = {c.id: c for c in self.claims}
+        claims_by_id = {
+            c.id: c 
+            for c in self.claims
+        }
+        
         for cid in claim_ids:
             claim = claims_by_id.get(cid)
             if not claim:
                 continue
+            
             for eid in claim.evidence_ids:
                 ev = evidence_by_id.get(eid)
                 if ev and ev.source_id not in seen:
