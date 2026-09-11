@@ -50,6 +50,7 @@ def research(request: ResearchRequest):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="query must not be empty")
     packet = run_research(request.query)
+    
     return packet.model_dump(mode="json")
 
 
@@ -58,6 +59,7 @@ def get_research(job_id: str):
     packet = load_job(job_id)
     if packet is None:
         raise HTTPException(status_code=404, detail="job not found")
+    
     return packet.model_dump(mode="json")
 
 
@@ -66,8 +68,16 @@ def ask(request: AskRequest):
     packet = load_job(request.job_id)
     if packet is None:
         raise HTTPException(status_code=404, detail="job not found")
-    call_counter = {"count": 0}
-    result = agents.answer_question(packet, request.question, call_counter)
+    
+    call_counter = {
+        "count": 0
+    }
+    result = agents.answer_question(
+        packet, 
+        request.question, 
+        call_counter
+    )
+    
     return result
 
 
@@ -86,8 +96,18 @@ def get_source(source_id: str, job_id: str):
     packet = load_job(job_id)
     if packet is None:
         raise HTTPException(status_code=404, detail="job not found")
-    source = next((s for s in packet.sources if s.id == source_id), None)
+    
+    source = None
+    for s in packet.sources:
+        if s.id == source_id:
+            source = s
+            break
+        
     if source is None:
         raise HTTPException(status_code=404, detail="source not found")
+    
     evidence = [e for e in packet.evidence if e.source_id == source_id]
-    return {"source": source.model_dump(mode="json"), "evidence": [e.model_dump(mode="json") for e in evidence]}
+    
+    return {
+        "source": source.model_dump(mode="json"), "evidence": [e.model_dump(mode="json") for e in evidence]
+    }

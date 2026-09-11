@@ -1,8 +1,6 @@
 """Shared configuration and LLM client for the research pipeline.
 
-Centralizing this here means every agent module calls the same
-budgeted, cache-aware entry point instead of constructing its own
-ChatOpenAI client (blueprint section 30: cost & rate-limit strategy).
+Centralizing this here means every agent module calls the same budgeted, cache-aware entry point instead of constructing its own ChatOpenAI client (blueprint section 30: cost & rate-limit strategy).
 """
 
 from __future__ import annotations
@@ -14,21 +12,21 @@ from typing import Any, Callable
 
 from langchain_openai import ChatOpenAI
 
-# --- Query planning ---------------------------------------------------
+# Query planning 
 MIN_QUERIES = int(os.getenv("RESEARCH_MIN_QUERIES", "4"))
 MAX_QUERIES = int(os.getenv("RESEARCH_MAX_QUERIES", "8"))
 SEARCH_RESULTS_PER_QUERY = int(os.getenv("RESEARCH_SEARCH_RESULTS_PER_QUERY", "8"))
 
-# --- Fetch / evidence ---------------------------------------------------
+# Fetch / evidence
 MAX_SOURCES_TO_FETCH = int(os.getenv("RESEARCH_MAX_SOURCES_TO_FETCH", "10"))
 FETCH_TIMEOUT_SECONDS = int(os.getenv("RESEARCH_FETCH_TIMEOUT", "8"))
 MAX_RESPONSE_BYTES = int(os.getenv("RESEARCH_MAX_RESPONSE_BYTES", str(3 * 1024 * 1024)))
 PASSAGE_CHUNK_CHARS = int(os.getenv("RESEARCH_PASSAGE_CHUNK_CHARS", "700"))
 
-# --- LLM call budget per job (blueprint section 30) ---------------------
+# LLM call budget per job (blueprint section 30)
 MAX_LLM_CALLS_PER_JOB = int(os.getenv("RESEARCH_MAX_LLM_CALLS", "12"))
 
-# --- Cache ---------------------------------------------------------------
+# Cache
 CACHE_DIR = os.getenv("RESEARCH_CACHE_DIR", ".cache")
 SEARCH_CACHE_TTL = int(os.getenv("RESEARCH_SEARCH_CACHE_TTL", str(60 * 60 * 6)))     # 6h
 PAGE_CACHE_TTL = int(os.getenv("RESEARCH_PAGE_CACHE_TTL", str(60 * 60 * 24)))        # 24h
@@ -55,6 +53,7 @@ def get_llm() -> ChatOpenAI:
     global _llm
     if _llm is None:
         _llm = ChatOpenAI(model=MODEL_NAME, temperature=0, base_url=BASE_URL)
+        
     return _llm
 
 
@@ -64,9 +63,7 @@ class LLMCallBudgetExceeded(RuntimeError):
 
 class LLMUnavailable(RuntimeError):
     """Raised when the model can't be reached or the API key is missing.
-    Callers should catch this and fall back to a deterministic heuristic
-    (see each agent's fallback path) rather than crash the whole job -
-    blueprint section 24, graceful degradation."""
+    Callers should catch this and fall back to a deterministic heuristic (see each agent's fallback path) rather than crash the whole job- blueprint section 24, graceful degradation."""
 
 
 def _strip_code_fences(text: str) -> str:
@@ -110,7 +107,7 @@ def call_llm_json(
 def with_fallback(fn: Callable[[], Any], fallback: Callable[[], Any], stage: str, on_error: Callable[[str, Exception], None] | None = None) -> Any:
     try:
         return fn()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc: 
         if on_error:
             on_error(stage, exc)
         return fallback()

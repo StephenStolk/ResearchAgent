@@ -1,6 +1,4 @@
-"""The agent stages from the blueprint (sections 7, 10-18), each a plain
-function over a ResearchPacket. Every stage takes an optional call_counter
-dict to share the per-job LLM budget (section 30), and degrades to a
+"""The agent stages from the blueprint (sections 7, 10-18), each a plain function over a ResearchPacket. Every stage takes an optional call_counter dict to share the per-job LLM budget (section 30), and degrades to a
 deterministic heuristic if the LLM is unavailable (section 24) rather than
 failing the whole job.
 """
@@ -57,6 +55,7 @@ def plan_queries(topic: str, call_counter: dict | None = None, packet: ResearchP
         "query so a reader unfamiliar with the topic has context. Add an entity-resolution query "
         "only if the topic name is ambiguous. Return ONLY a JSON array of strings."
     )
+    
     try:
         result = call_llm_json(system, f"Topic: {topic}", call_counter, stage="planner")
         queries = [q for q in result if isinstance(q, str) and q.strip()] if isinstance(result, list) else []
@@ -396,7 +395,7 @@ def answer_question(packet: ResearchPacket, question: str, call_counter: dict | 
                 "answer": result["answer"],
                 "claim_ids": [cid for cid in result.get("claim_ids", []) if cid in valid_ids],
             }
-    except Exception:  # noqa: BLE001 - degrade to keyword-relevant claims below
+    except Exception: 
         pass
 
     return {
@@ -508,10 +507,9 @@ def _source_ids_for_evidence(packet: ResearchPacket, evidence_ids: list[str]) ->
 
 
 def _heuristic_insights(packet: ResearchPacket, evidence_pool: list[Evidence]) -> None:
-    """Deterministic fallback: turn the 3 longest verified evidence
-    passages into CONCEPT insights, still fully cited, just without LLM
-    elaboration/synthesis across passages."""
+    """Deterministic fallback: turn the 3 longest verified evidence passages into CONCEPT insights, still fully cited, just without LLM elaboration/synthesis across passages."""
     longest = sorted(evidence_pool, key=lambda e: len(e.passage), reverse=True)[:3]
+    
     for ev in longest:
         title = ev.passage[:60].rsplit(" ", 1)[0] if " " in ev.passage[:60] else ev.passage[:60]
         packet.insights.append(Insight(
