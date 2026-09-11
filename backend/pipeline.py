@@ -22,14 +22,49 @@ from backend.tools import chunk_passages, fetch_page, results_to_sources
 JOB_CACHE_TTL = 60 * 60 * 24 * 3  # 3 days
 
 
-def _time_stage(packet: ResearchPacket, name: str, fn) -> None:
+def _time_stage(
+    packet: ResearchPacket,
+    name: str,
+    fn,
+    progress_callback=None,
+    progress: float | None = None,
+) -> None:
     start = time.time()
+    
+    if progress_callback:
+        progress_callback(
+            packet.job_id,
+            name,
+            progress,
+            "running",
+        )
+    
     try:
         fn()
-    except Exception as exc: 
-        packet.stage_notes.append(f"[{name}] stage failed entirely: {exc}")
+        if progress_callback:
+            progress_callback(
+                packet.job_id,
+                name,
+                progress,
+                "completed",
+            )
         
-    packet.stage_timings_ms[name] = int((time.time() - start) * 1000)
+    except Exception as exc:
+        packet.stage_notes.append(
+            f"[{name}] stage failed entirely: {exc}"
+        )
+        if progress_callback:
+            progress_callback(
+                packet.job_id,
+                name,
+                progress,
+                "failed",
+                str(exc),
+            )
+            
+    packet.stage_timings_ms[name] = int(
+        (time.time() - start) * 1000
+    )
 
 
 def _collect_sources(packet: ResearchPacket, queries: list[str]) -> None:
@@ -100,38 +135,162 @@ def _apply_quality_gates(packet: ResearchPacket) -> None:
     )
 
 
-def run_research(topic: str) -> ResearchPacket:
-    packet = ResearchPacket(topic=topic)
+def run_research(
+    topic: str,
+    progress_callback=None,
+    job_id: str | None = None,
+) -> ResearchPacket:
+    if job_id:
+        packet = ResearchPacket(
+            topic=topic,
+            job_id=job_id,
+        )
+    else:
+        packet = ResearchPacket(topic=topic)
+
     call_counter = {"count": 0}
 
     queries: list[str] = []
-    _time_stage(packet, "planner", lambda: queries.extend(agents.plan_queries(topic, call_counter, packet)))
-    
-    _time_stage(packet, "retriever", lambda: _collect_sources(packet, queries))
-    
-    _time_stage(packet, "fetcher", lambda: _fetch_evidence(packet))
-    
-    _time_stage(packet, "extractor", lambda: agents.extract_claims(packet, call_counter))
-    
-    _time_stage(packet, "verifier", lambda: agents.verify_claims(packet, call_counter))
-    
-    _time_stage(packet, "fact_checker", lambda: agents.fact_check(packet, call_counter))
-    
-    _time_stage(packet, "conflict_resolver", lambda: agents.resolve_conflicts(packet))
-    
-    _time_stage(packet, "insights", lambda: agents.generate_insights(packet, call_counter))
-    
-    _time_stage(packet, "synthesizer", lambda: agents.synthesize(packet, call_counter))
-    
-    _time_stage(packet, "content_builder", lambda: agents.build_content(packet))
-    
-    _time_stage(packet, "chart_builder", lambda: build_all_charts(packet))
-    
+
+    stages = [
+        ("planner", 0.05),
+        ("retriever", 0.15),
+        ("fetcher", 0.30),
+        ("extractor", 0.40),
+        ("verifier", 0.52),
+        ("fact_checker", 0.62),
+        ("conflict_resolver", 0.70),
+        ("insights", 0.78),
+        ("synthesizer", 0.86),
+        ("content_builder", 0.91),
+        ("chart_builder", 0.96),
+    ]
+
+    _time_stage(
+        packet,
+        "planner",
+        lambda: queries.extend(
+            agents.plan_queries(
+                topic,
+                call_counter,
+                packet,
+            )
+        ),
+        progress_callback,
+        stages[0][1],
+    )
+
+    _time_stage(
+        packet,
+        "retriever",
+        lambda: _collect_sources(
+            packet,
+            queries,
+        ),
+        progress_callback,
+        stages[1][1],
+    )
+
+    _time_stage(
+        packet,
+        "fetcher",
+        lambda: _fetch_evidence(packet),
+        progress_callback,
+        stages[2][1],
+    )
+
+    _time_stage(
+        packet,
+        "extractor",
+        lambda: agents.extract_claims(
+            packet,
+            call_counter,
+        ),
+        progress_callback,
+        stages[3][1],
+    )
+
+    _time_stage(
+        packet,
+        "verifier",
+        lambda: agents.verify_claims(
+            packet,
+            call_counter,
+        ),
+        progress_callback,
+        stages[4][1],
+    )
+
+    _time_stage(
+        packet,
+        "fact_checker",
+        lambda: agents.fact_check(
+            packet,
+            call_counter,
+        ),
+        progress_callback,
+        stages[5][1],
+    )
+
+    _time_stage(
+        packet,
+        "conflict_resolver",
+        lambda: agents.resolve_conflicts(packet),
+        progress_callback,
+        stages[6][1],
+    )
+
+    _time_stage(
+        packet,
+        "insights",
+        lambda: agents.generate_insights(
+            packet,
+            call_counter,
+        ),
+        progress_callback,
+        stages[7][1],
+    )
+
+    _time_stage(
+        packet,
+        "synthesizer",
+        lambda: agents.synthesize(
+            packet,
+            call_counter,
+        ),
+        progress_callback,
+        stages[8][1],
+    )
+
+    _time_stage(
+        packet,
+        "content_builder",
+        lambda: agents.build_content(packet),
+        progress_callback,
+        stages[9][1],
+    )
+
+    _time_stage(
+        packet,
+        "chart_builder",
+        lambda: build_all_charts(packet),
+        progress_callback,
+        stages[10][1],
+    )
+
     _apply_quality_gates(packet)
 
     save_job(packet)
-    return packet
 
+    if progress_callback:
+        progress_callback(
+            packet.job_id,
+            "complete",
+            1.0,
+            "completed",
+        )
+
+    return packet
 
 # job store (section 21: API design around a job_id)
 
