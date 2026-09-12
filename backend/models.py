@@ -201,6 +201,7 @@ class PipelineVersions(BaseModel):
 class ResearchPacket(BaseModel):
     """The canonical, stable contract between backend intelligence and every UI surface (blueprint §36, §40). Nothing downstream (synthesis,content builder, ASK, scenario engine) should read raw search/fetch
     output directly - only this object."""
+    
     job_id: str = Field(default_factory=lambda: _new_id("job"))
     topic: str
     status: ReportStatus = ReportStatus.NEEDS_REVIEW
@@ -226,6 +227,7 @@ class ResearchPacket(BaseModel):
         for existing in self.sources:
             if existing.canonical_url == source.canonical_url:
                 return existing
+            
         self.sources.append(source)
         return source
 
@@ -241,6 +243,7 @@ class ResearchPacket(BaseModel):
         high = self.high_importance_claims()
         if not high:
             return 1.0
+        
         covered = sum(1 for c in high if c.evidence_ids)
         return covered / len(high)
 

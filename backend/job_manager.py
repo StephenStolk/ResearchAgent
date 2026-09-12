@@ -42,8 +42,7 @@ class JobManager:
         
     def remove(self, job_id: str) -> None:
         with self._jobs_lock:
-            if job_id in self._jobs_lock:
-                self._jobs.pop(job_id,None)
+            self._jobs.pop(job_id, None)
     
     def update(
         self,
@@ -95,7 +94,7 @@ class JobManager:
             **payload,
         }
         
-        self.__publish_threadsafe(runtime, event)
+        self._publish_threadsafe(runtime, event)
         
     def _publish_threadsafe(
         self, 

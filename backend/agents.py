@@ -103,6 +103,7 @@ def extract_claims(packet: ResearchPacket, call_counter: dict | None = None, max
         "evidence_ids (array of the passage ids that support it), extraction_confidence (0-1). "
         "Return ONLY a JSON array of these objects."
     )
+    
     passages_text = "\n".join(f"[{e.id}] {e.passage[:500]}" for e in evidence_batch)
     try:
         result = call_llm_json(system, passages_text, call_counter, stage="extractor")
@@ -114,6 +115,7 @@ def extract_claims(packet: ResearchPacket, call_counter: dict | None = None, max
             ev_ids = [i for i in item.get("evidence_ids", []) if i in valid_ids]
             if not ev_ids:
                 continue  # never accept a claim with no valid evidence reference
+            
             packet.claims.append(Claim(
                 text=item["text"],
                 claim_type=_safe_enum(ClaimType, item.get("claim_type"), ClaimType.FACT),
@@ -176,9 +178,7 @@ def _safe_enum(enum_cls, value, default):
         return default
 
 
-# ---------------------------------------------------------------------
-# 5. Verification Agent (blueprint section 11)
-# ---------------------------------------------------------------------
+# Verification Agent
 
 def verify_claims(packet: ResearchPacket, call_counter: dict | None = None, batch_size: int = 15) -> None:
     if not packet.claims:
@@ -188,6 +188,7 @@ def verify_claims(packet: ResearchPacket, call_counter: dict | None = None, batc
     for start in range(0, len(packet.claims), batch_size):
         batch = packet.claims[start:start + batch_size]
         payload = []
+        
         for c in batch:
             evidence_texts = [evidence_by_id[eid].passage[:400] for eid in c.evidence_ids if eid in evidence_by_id]
             payload.append({"claim_id": c.id, "claim": c.text, "evidence": evidence_texts})
@@ -198,20 +199,28 @@ def verify_claims(packet: ResearchPacket, call_counter: dict | None = None, batc
             "SUPPORTS, PARTIAL, CONTRADICTS, INSUFFICIENT, OUTDATED, UNVERIFIED. Return ONLY a JSON array "
             "of {claim_id, status, verification_confidence (0-1), notes}."
         )
+        
         try:
             import json as _json
+            
             result = call_llm_json(system, _json.dumps(payload), call_counter, stage="verifier")
+            
             by_id = {c.id: c for c in batch}
+            
             for item in result if isinstance(result, list) else []:
                 claim = by_id.get(item.get("claim_id"))
                 if not claim:
                     continue
                 claim.status = _safe_enum(VerificationStatus, item.get("status"), VerificationStatus.UNVERIFIED)
+                
                 claim.verification_confidence = float(item.get("verification_confidence", 0.5))
+                
                 claim.verification_notes = item.get("notes")
+                
         except (LLMUnavailable, LLMCallBudgetExceeded) as exc:
             _note(packet, "verifier", f"LLM verification unavailable for batch ({exc}); using heuristic")
             _heuristic_verify(batch, evidence_by_id)
+            
         except Exception as exc:  # noqa: BLE001
             _note(packet, "verifier", f"LLM verification failed for batch ({exc}); using heuristic")
             _heuristic_verify(batch, evidence_by_id)

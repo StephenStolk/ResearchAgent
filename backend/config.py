@@ -99,6 +99,7 @@ def call_llm_json(
             response = llm.invoke(messages)
             raw = _strip_code_fences(response.content if isinstance(response.content, str) else str(response.content))
             return json.loads(raw)
+        
         except Exception as exc:  # noqa: BLE001 - deliberately broad, this is a degrade point
             last_error = exc
     raise LLMUnavailable(f"stage={stage}: {last_error}")
